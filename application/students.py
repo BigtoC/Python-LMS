@@ -3,22 +3,41 @@ from flask import render_template, session, redirect, request, flash, escape
 from functools import wraps
 from helper_functions import *
 
+
 @app.route('/students/')
 @validate_student
 def student_home():
 	return render_template('/students/index.html', classes=getStudentClasses())
+
 
 @app.route('/students/classes/')
 @validate_student
 def student_classes_home():
 	return render_template('/students/classes.html', classes=getStudentClasses())
 
+
 @app.route('/students/classes/join/', methods=['POST'])
 @validate_student
 def student_class_join():
-	insert_db("INSERT INTO roster (people_id, class_id) VALUES (?, ?);", [session['id'], request.form['id']])
-	flash("You joined the class with an id of %s" %(request.form['id']))
+    class_id = request.form['id']
+    std_id = session['id']
+    std_classes = query_db("SELECT people_id, class_id FROM roster WHERE people_id=?", [std_id])
+    joined = False
+
+    for c in std_classes:
+        if int(class_id) == int(c[1]):
+            joined = True
+        else:
+            pass
+
+    if not joined:
+        insert_db("INSERT INTO roster (people_id, class_id) VALUES (?, ?);", [std_id, class_id])
+        flash(f"You joined the class with an id of {class_id}")
+    else:
+        flash(f"You've already join class with an id of {class_id}, no need to join again.")
+
 	return redirect("/students/classes")
+
 
 @app.route('/students/class/<class_id>/')
 @validate_student
@@ -26,11 +45,13 @@ def student_class_page(class_id):
 	className = query_db("SELECT name FROM classes WHERE id=?;", [class_id], one=True)
 	return render_template('/students/class_page.html', class_name=str(className[0]), topics=getClassTopics(class_id), assignments=getClassAssignments(class_id), quizzes=getClassQuizzes(class_id), grades=getStudentGrades(class_id))
 
+
 @app.route('/students/topics/<topic_id>/')
 @validate_student
 def student_topic_page(topic_id):
 	topicName = query_db("SELECT name FROM topics WHERE id=?;", [topic_id], one=True)
 	return render_template('/students/topic_page.html', topic_name=str(topicName[0]), assignments=getTopicAssignments(topic_id), quizzes=getTopicQuizzes(topic_id))
+
 
 @app.route('/students/quizzes/<quiz_id>/')
 @validate_student
@@ -51,6 +72,7 @@ def student_quiz_page(quiz_id):
 		flash("You receieved a grade of {0}% on this quiz.".format(result[0]))
 		return render_template('/students/quiz_page.html', quiz_name=quizName[0][0])
 
+	
 @app.route('/students/quizzes/grade/<quiz_id>/', methods=['POST'])
 @validate_student
 def grade_quiz(quiz_id):
@@ -70,6 +92,7 @@ def grade_quiz(quiz_id):
 	percent = (correct/questions)*100
 	insert_db("INSERT INTO quiz_grades (student_id, quiz_id, grade) VALUES (?, ?, ?);", [session['id'], quiz_id, percent])
 	return redirect("/students/quizzes/%s/"%(quiz_id))
+
 
 @app.route('/students/assignments/<assignment_id>/')
 @validate_student
